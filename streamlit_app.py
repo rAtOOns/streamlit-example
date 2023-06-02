@@ -1,19 +1,58 @@
-# Import the streamlit library
 import streamlit as st
+import pandas as pd
+import requests
+import matplotlib.pyplot as plt
+from datetime import datetime, timedelta
+from sklearn.linear_model import LinearRegression
 
-# Use the write function to introduce the app
-st.write("""
-# Welcome to My Streamlit App!
-This app receives two numbers as input, multiplies them, and displays the result.
-""")
+# Replace with your own API key
+API_KEY = "25CSW4MZCC9FQGB1"
 
-# Use the number_input function to get numbers from the user
-num1 = st.number_input('Enter first number')
-num2 = st.number_input('Enter second number')
+st.title('Enhanced SCTR Stock App')
 
-# Use a button to handle the calculation
-if st.button('Calculate'):
-    result = num1 * num2
+# Input multiple stock symbols
+symbols = st.text_input('Enter stock symbols (comma separated)', value='AAPL,GOOGL,MSFT')
 
-    # Use the write function to display the result
-    st.write('The result is ', result)
+# Convert the input to a list
+symbols = symbols.split(',')
+
+# Define a function to get technical data from the API
+def get_technical_data(symbol):
+    url = f"https://www.alphavantage.co/query?function=OVERVIEW&symbol={symbol.strip()}&apikey={API_KEY}"
+    response = requests.get(url)
+
+    if response.status_code == 200:
+        data = response.json()
+        return data
+    else:
+        return None
+
+# Iterate over the symbols
+for symbol in symbols:
+    data = get_technical_data(symbol)
+    
+    if data is not None:
+        # Get the SCTR, RSI, Moving averages and MACD
+        st.write(f"Technical Data for {symbol}:")
+        st.write(f"SCTR: {data.get('SCTR', 'N/A')}")
+        st.write(f"RSI: {data.get('RSI', 'N/A')}")
+        st.write(f"Moving Average: {data.get('MovingAverage', 'N/A')}")
+        st.write(f"MACD: {data.get('MACD', 'N/A')}")
+
+        # Plot SCTR over time
+        sctr_over_time = pd.DataFrame(data.get('SCTR_Historical', {}))
+        plt.figure(figsize=(10, 5))
+        plt.plot(sctr_over_time.index, sctr_over_time['SCTR'], label=f'{symbol} SCTR')
+        plt.legend()
+        plt.grid()
+        st.pyplot(plt.cla())
+
+        # Predict future trend based on historical SCTR
+        model = LinearRegression()
+        X = sctr_over_time.index.values.reshape(-1, 1)
+        y = sctr_over_time['SCTR']
+        model.fit(X, y)
+        future_trend = model.predict(X)
+        st.write(f"Predicted Future SCTR trend for {symbol}: {future_trend[-1]}")
+    else:
+        st.write(f"Failed to fetch data for {symbol}")
