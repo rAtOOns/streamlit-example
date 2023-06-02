@@ -1,68 +1,33 @@
 import streamlit as st
-import pandas as pd
-import requests
-import matplotlib.pyplot as plt
-from datetime import datetime, timedelta
 
-API_KEY = "25CSW4MZCC9FQGB1"
-
-st.title('Stock App')
+# Set up the layout and widgets
+st.title('Stockcharts SCTR App')
 
 symbol = st.text_input('Enter stock symbol', value='AAPL')
+sctr = st.slider('SCTR', 1.00, 100.00)
+change_in_sctr = st.slider('Change in SCTR', -50.00, 100.00)
+weekly_change = st.slider('Weekly Change', -50.00, 100.00)
 
-start_date = st.date_input('Start date', value=datetime.today() - timedelta(days=365))
-end_date = st.date_input('End date', value=datetime.today())
+analysis = st.multiselect('Select Analysis', ['Price Volume Expansion'])
+stocks = st.multiselect('Stocks from iCharts EOD', ['FORCEMOT'])
 
-technical_indicators = st.multiselect(
-    'Select technical indicators',
-    options=['SMA', 'EMA', 'MACD', 'RSI'],
-    default=['SMA', 'EMA']
-)
+risk_per_trade = st.text_input('Risk per trade (%)', '1')
+total_portfolio_value = st.text_input('Total portfolio value', '100000')
+atr_times = st.slider('ATR Times', 1.00, 3.00)
 
-def get_technical_indicator_data(symbol, indicator):
-    base_url = "https://www.alphavantage.co/query"
-    params = {
-        "function": indicator,
-        "symbol": symbol.strip(),
-        "apikey": API_KEY
-    }
+# Get data and perform computations
+# You'd need to implement these functions based on your specific requirements
+qvt_score = get_qvt_score(symbol)
+check_before_buy = check_before_buy(symbol)
+technical_analysis = perform_technical_analysis(symbol)
+swot_analysis = perform_swot_analysis(symbol)
 
-    response = requests.get(base_url, params=params)
-    
-    if response.status_code != 200:
-        st.write(f"Failed to fetch {indicator} data for {symbol}: HTTP {response.status_code}")
-        return None
+# Display the results
+st.write({
+    "QVT Score": qvt_score,
+    "Check Before Buy": check_before_buy,
+    "Technical Analysis": technical_analysis,
+    "SWOT Analysis": swot_analysis,
+})
 
-    data = response.json()
-
-    key = f'Technical Analysis: {indicator}'
-    if key not in data:
-        st.write(f"No {indicator} data found for {symbol}")
-        return None
-    
-    indicator_data = pd.DataFrame.from_dict(data[key], orient='index')
-    indicator_data = indicator_data.sort_index()
-
-    indicator_data[indicator] = indicator_data[indicator].apply(pd.to_numeric)
-    
-    return indicator_data
-
-data_frames = []
-for indicator in technical_indicators:
-    data_frame = get_technical_indicator_data(symbol, indicator)
-    if data_frame is not None:
-        data_frames.append(data_frame)
-
-if data_frames:
-    data = pd.concat(data_frames, axis=1)
-    data = data.loc[start_date:end_date]
-    
-    plt.figure(figsize=(10, 5))
-    
-    for indicator in technical_indicators:
-        if indicator in data.columns:
-            plt.plot(data.index, data[indicator], label=f'{symbol} {indicator}')
-    
-    plt.legend()
-    plt.grid()
-    st.pyplot(plt.cla())
+st.write('Made with Streamlit')
