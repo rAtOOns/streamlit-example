@@ -3,56 +3,56 @@ import pandas as pd
 import requests
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
-from sklearn.linear_model import LinearRegression
 
-# Replace with your own API key
 API_KEY = "25CSW4MZCC9FQGB1"
 
-st.title('Enhanced SCTR Stock App')
+st.title('Stock App')
 
-# Input multiple stock symbols
 symbols = st.text_input('Enter stock symbols (comma separated)', value='AAPL,GOOGL,MSFT')
 
-# Convert the input to a list
 symbols = symbols.split(',')
 
-# Define a function to get technical data from the API
-def get_technical_data(symbol):
-    url = f"https://www.alphavantage.co/query?function=OVERVIEW&symbol={symbol.strip()}&apikey={API_KEY}"
-    response = requests.get(url)
-
-    if response.status_code == 200:
-        data = response.json()
-        return data
-    else:
+# Fetch daily adjusted stock data and SMA from Alpha Vantage
+def get_stock_data(symbol):
+    base_url = "https://www.alphavantage.co/query"
+    params = {
+        "function": "TIME_SERIES_DAILY_ADJUSTED",
+        "symbol": symbol.strip(),
+        "apikey": API_KEY
+    }
+    response = requests.get(base_url, params=params)
+    data = response.json()
+    
+    if "Error Message" in data:
+        st.write(f"Failed to fetch data for {symbol}")
         return None
+    
+    stock_data = pd.DataFrame.from_dict(data['Time Series (Daily)'], orient='index')
+    stock_data = stock_data.sort_index()
+    
+    params["function"] = "SMA"
+    response = requests.get(base_url, params=params)
+    data = response.json()
+    
+    if "Error Message" in data:
+        st.write(f"Failed to fetch SMA data for {symbol}")
+        return None
+    
+    sma_data = pd.DataFrame.from_dict(data['Technical Analysis: SMA'], orient='index')
+    sma_data = sma_data.sort_index()
+    
+    merged_data = stock_data.join(sma_data, lsuffix='_stock', rsuffix='_sma')
+    merged_data[['5. adjusted close', 'SMA']] = merged_data[['5. adjusted close', 'SMA']].apply(pd.to_numeric)
+    
+    return merged_data
 
-# Iterate over the symbols
 for symbol in symbols:
-    data = get_technical_data(symbol)
+    data = get_stock_data(symbol)
     
     if data is not None:
-        # Get the SCTR, RSI, Moving averages and MACD
-        st.write(f"Technical Data for {symbol}:")
-        st.write(f"SCTR: {data.get('SCTR', 'N/A')}")
-        st.write(f"RSI: {data.get('RSI', 'N/A')}")
-        st.write(f"Moving Average: {data.get('MovingAverage', 'N/A')}")
-        st.write(f"MACD: {data.get('MACD', 'N/A')}")
-
-        # Plot SCTR over time
-        sctr_over_time = pd.DataFrame(data.get('SCTR_Historical', {}))
         plt.figure(figsize=(10, 5))
-        plt.plot(sctr_over_time.index, sctr_over_time['SCTR'], label=f'{symbol} SCTR')
+        plt.plot(data.index, data['5. adjusted close'], label=f'{symbol} adjusted close')
+        plt.plot(data.index, data['SMA'], label=f'{symbol} SMA')
         plt.legend()
         plt.grid()
         st.pyplot(plt.cla())
-
-        # Predict future trend based on historical SCTR
-        model = LinearRegression()
-        X = sctr_over_time.index.values.reshape(-1, 1)
-        y = sctr_over_time['SCTR']
-        model.fit(X, y)
-        future_trend = model.predict(X)
-        st.write(f"Predicted Future SCTR trend for {symbol}: {future_trend[-1]}")
-    else:
-        st.write(f"Failed to fetch data for {symbol}")
