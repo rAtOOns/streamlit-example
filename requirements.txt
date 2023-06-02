@@ -1,6 +1,6 @@
 altair
-pandas
 streamlit
-matplotlib
+pandas
 requests
+matplotlib
 scikit-learn
