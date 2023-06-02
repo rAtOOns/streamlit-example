@@ -8,51 +8,61 @@ API_KEY = "25CSW4MZCC9FQGB1"
 
 st.title('Stock App')
 
-symbols = st.text_input('Enter stock symbols (comma separated)', value='AAPL,GOOGL,MSFT')
+symbol = st.text_input('Enter stock symbol', value='AAPL')
 
-symbols = symbols.split(',')
+start_date = st.date_input('Start date', value=datetime.today() - timedelta(days=365))
+end_date = st.date_input('End date', value=datetime.today())
 
-# Fetch daily adjusted stock data and SMA from Alpha Vantage
-def get_stock_data(symbol):
+technical_indicators = st.multiselect(
+    'Select technical indicators',
+    options=['SMA', 'EMA', 'MACD', 'RSI'],
+    default=['SMA', 'EMA']
+)
+
+def get_technical_indicator_data(symbol, indicator):
     base_url = "https://www.alphavantage.co/query"
     params = {
-        "function": "TIME_SERIES_DAILY_ADJUSTED",
+        "function": indicator,
         "symbol": symbol.strip(),
         "apikey": API_KEY
     }
-    response = requests.get(base_url, params=params)
-    data = response.json()
-    
-    if "Error Message" in data:
-        st.write(f"Failed to fetch data for {symbol}")
-        return None
-    
-    stock_data = pd.DataFrame.from_dict(data['Time Series (Daily)'], orient='index')
-    stock_data = stock_data.sort_index()
-    
-    params["function"] = "SMA"
-    response = requests.get(base_url, params=params)
-    data = response.json()
-    
-    if "Error Message" in data:
-        st.write(f"Failed to fetch SMA data for {symbol}")
-        return None
-    
-    sma_data = pd.DataFrame.from_dict(data['Technical Analysis: SMA'], orient='index')
-    sma_data = sma_data.sort_index()
-    
-    merged_data = stock_data.join(sma_data, lsuffix='_stock', rsuffix='_sma')
-    merged_data[['5. adjusted close', 'SMA']] = merged_data[['5. adjusted close', 'SMA']].apply(pd.to_numeric)
-    
-    return merged_data
 
-for symbol in symbols:
-    data = get_stock_data(symbol)
+    response = requests.get(base_url, params=params)
     
-    if data is not None:
-        plt.figure(figsize=(10, 5))
-        plt.plot(data.index, data['5. adjusted close'], label=f'{symbol} adjusted close')
-        plt.plot(data.index, data['SMA'], label=f'{symbol} SMA')
-        plt.legend()
-        plt.grid()
-        st.pyplot(plt.cla())
+    if response.status_code != 200:
+        st.write(f"Failed to fetch {indicator} data for {symbol}: HTTP {response.status_code}")
+        return None
+
+    data = response.json()
+
+    key = f'Technical Analysis: {indicator}'
+    if key not in data:
+        st.write(f"No {indicator} data found for {symbol}")
+        return None
+    
+    indicator_data = pd.DataFrame.from_dict(data[key], orient='index')
+    indicator_data = indicator_data.sort_index()
+
+    indicator_data[indicator] = indicator_data[indicator].apply(pd.to_numeric)
+    
+    return indicator_data
+
+data_frames = []
+for indicator in technical_indicators:
+    data_frame = get_technical_indicator_data(symbol, indicator)
+    if data_frame is not None:
+        data_frames.append(data_frame)
+
+if data_frames:
+    data = pd.concat(data_frames, axis=1)
+    data = data.loc[start_date:end_date]
+    
+    plt.figure(figsize=(10, 5))
+    
+    for indicator in technical_indicators:
+        if indicator in data.columns:
+            plt.plot(data.index, data[indicator], label=f'{symbol} {indicator}')
+    
+    plt.legend()
+    plt.grid()
+    st.pyplot(plt.cla())
